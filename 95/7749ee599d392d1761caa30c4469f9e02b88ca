@@ -1,0 +1,34 @@
+.github/workflows/ci.yml
+  h_b2cbf7bf157784 1-13
+.gitignore
+  h_b2cbf7bf157784 1-5
+LICENSE
+  h_b2cbf7bf157784 1-21
+Package.swift
+  h_b2cbf7bf157784 1-12
+README.md
+  h_b2cbf7bf157784 1-44
+Sources/DemandBoardView.swift
+  h_b2cbf7bf157784 1-267
+Sources/DemandEditorView.swift
+  h_b2cbf7bf157784 1-205
+Sources/DemandStore.swift
+  h_b2cbf7bf157784 1-105
+Sources/Models.swift
+  h_b2cbf7bf157784 1-109
+Sources/QuadSpellApp.swift
+  h_b2cbf7bf157784 1-11
+Tests/QuadSpellTests.swift
+  h_b2cbf7bf157784 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "957749ee599d392d1761caa30c4469f9e02b88ca",
+  "prompts": {},
+  "humans": {
+    "h_b2cbf7bf157784": {
+      "author": "oin625 <59349289+oin625@users.noreply.github.com>"
+    }
+  }
+}
