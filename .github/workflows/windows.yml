@@ -16,6 +16,9 @@ jobs:
         run: npm install --no-package-lock
       - name: Test desktop data model
         run: npm run test:desktop
+      - name: Smoke test desktop interface
+        run: npm run smoke:desktop
+        timeout-minutes: 2
       - name: Build Windows installer and portable app
         run: npm run dist:win
       - uses: actions/upload-artifact@v4
