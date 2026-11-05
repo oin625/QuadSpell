@@ -1,0 +1,16 @@
+README.md
+  h_b2cbf7bf157784 17
+package.json
+  h_b2cbf7bf157784 6-7,13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "91a97bfe6e20596a82d680e9cc139b154cb326c7",
+  "prompts": {},
+  "humans": {
+    "h_b2cbf7bf157784": {
+      "author": "oin625 <59349289+oin625@users.noreply.github.com>"
+    }
+  }
+}
