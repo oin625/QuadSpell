@@ -14,7 +14,7 @@
 
 ## Windows
 
-从 [Releases](https://github.com/oin625/QuadSpell/releases) 下载 Windows 64 位安装程序（`Setup.exe`）或免安装版（`portable.exe`）。安装后打开 QuadSpell 即可使用。
+从 [Releases](https://github.com/oin625/QuadSpell/releases) 下载 Windows 64 位安装程序（`QuadSpell-Setup-*.exe`）或免安装版（`QuadSpell-Portable-*.exe`）。安装后打开 QuadSpell 即可使用。当前安装包未签名，首次运行可能显示“未知发布者”。
 
 开发运行需要 Node.js 22：
 

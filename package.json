@@ -3,12 +3,14 @@
   "version": "0.2.0",
   "private": true,
   "description": "QuadSpell cross-platform demand board",
+  "author": "oin625",
+  "license": "MIT",
   "main": "desktop/main.cjs",
   "scripts": {
     "start": "electron .",
     "test:desktop": "node --test desktop/tests/*.test.cjs",
     "smoke:desktop": "electron desktop/smoke.cjs",
-    "dist:win": "electron-builder --win nsis portable --x64"
+    "dist:win": "electron-builder --win nsis portable --x64 --publish never"
   },
   "devDependencies": {
     "electron": "45.2.2",
