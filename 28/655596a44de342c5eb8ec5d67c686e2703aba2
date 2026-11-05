@@ -1,0 +1,44 @@
+.github/workflows/windows.yml
+  h_b2cbf7bf157784 1-25
+.gitignore
+  h_b2cbf7bf157784 6-8
+Package.swift
+  h_b2cbf7bf157784 10-11
+README.md
+  h_b2cbf7bf157784 3,10,15,17-37,43,49-51,55-57
+Tests/Fixtures/mac-board.json
+  h_b2cbf7bf157784 1-28
+Tests/PortableDataTests.swift
+  h_b2cbf7bf157784 1-14
+desktop/index.html
+  h_b2cbf7bf157784 1-128
+desktop/main.cjs
+  h_b2cbf7bf157784 1-56
+desktop/model.cjs
+  h_b2cbf7bf157784 1-144
+desktop/preload.cjs
+  h_b2cbf7bf157784 1-12
+desktop/renderer.js
+  h_b2cbf7bf157784 1-406
+desktop/smoke.cjs
+  h_b2cbf7bf157784 1-58
+desktop/storage.cjs
+  h_b2cbf7bf157784 1-90
+desktop/style.css
+  h_b2cbf7bf157784 1-152
+desktop/tests/model.test.cjs
+  h_b2cbf7bf157784 1-84
+package.json
+  h_b2cbf7bf157784 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "28655596a44de342c5eb8ec5d67c686e2703aba2",
+  "prompts": {},
+  "humans": {
+    "h_b2cbf7bf157784": {
+      "author": "oin625 <59349289+oin625@users.noreply.github.com>"
+    }
+  }
+}
