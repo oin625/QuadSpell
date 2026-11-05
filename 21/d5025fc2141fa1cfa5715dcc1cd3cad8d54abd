@@ -1,0 +1,14 @@
+.github/workflows/windows.yml
+  h_b2cbf7bf157784 19-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "21d5025fc2141fa1cfa5715dcc1cd3cad8d54abd",
+  "prompts": {},
+  "humans": {
+    "h_b2cbf7bf157784": {
+      "author": "oin625 <59349289+oin625@users.noreply.github.com>"
+    }
+  }
+}
