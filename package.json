@@ -1,0 +1,40 @@
+{
+  "name": "quadspell-desktop",
+  "version": "0.2.0",
+  "private": true,
+  "description": "QuadSpell cross-platform demand board",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test:desktop": "node --test desktop/tests/*.test.cjs",
+    "smoke:desktop": "electron desktop/smoke.cjs",
+    "dist:win": "electron-builder --win nsis portable --x64"
+  },
+  "devDependencies": {
+    "electron": "45.2.2",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "io.github.oin625.quadspell",
+    "productName": "QuadSpell",
+    "asar": true,
+    "files": ["desktop/**/*", "!desktop/tests/**", "!desktop/smoke.cjs", "package.json", "LICENSE"],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "artifactName": "QuadSpell-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "QuadSpell-Portable-${version}-${arch}.${ext}"
+    }
+  }
+}

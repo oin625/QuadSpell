@@ -1,0 +1,25 @@
+name: Windows build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install desktop dependencies
+        run: npm install --no-package-lock
+      - name: Test desktop data model
+        run: npm run test:desktop
+      - name: Build Windows installer and portable app
+        run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QuadSpell-Windows
+          path: dist/*.exe
+          if-no-files-found: error

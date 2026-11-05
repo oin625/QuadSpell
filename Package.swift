@@ -7,6 +7,7 @@ let package = Package(
     products: [.executable(name: "QuadSpell", targets: ["QuadSpell"])],
     targets: [
         .executableTarget(name: "QuadSpell", path: "Sources"),
-        .testTarget(name: "QuadSpellTests", dependencies: ["QuadSpell"], path: "Tests")
+        .testTarget(name: "QuadSpellTests", dependencies: ["QuadSpell"], path: "Tests",
+                    resources: [.process("Fixtures")])
     ]
 )

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuadSpell · 四象咒言</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./renderer.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">✦</span>
+        <div>
+          <h1>四象咒言</h1>
+          <p>把需求放进四象限，为下一步写好咒言</p>
+        </div>
+      </div>
+      <button id="add" class="primary" type="button">＋ 新增需求</button>
+    </header>
+
+    <section class="toolbar" aria-label="需求筛选">
+      <input id="search" type="search" placeholder="搜索需求、项目或咒言" aria-label="搜索需求">
+      <label class="select-wrap">
+        <span class="sr-only">状态</span>
+        <select id="status">
+          <option value="active">未完成</option>
+          <option value="all">全部</option>
+          <option value="planned">待开始</option>
+          <option value="inProgress">进行中</option>
+          <option value="paused">挂起</option>
+          <option value="completed">已完成</option>
+        </select>
+      </label>
+      <span id="count" class="count"></span>
+      <div class="segments" aria-label="视图">
+        <button id="matrix-tab" type="button" aria-pressed="true">四象限</button>
+        <button id="list-tab" type="button" aria-pressed="false">列表</button>
+      </div>
+    </section>
+    <div id="message" class="message" role="status" hidden></div>
+    <section id="board" class="board" aria-live="polite"></section>
+  </main>
+
+  <dialog id="editor" aria-labelledby="editor-title">
+    <div class="editor-shell">
+      <header class="editor-header">
+        <h2 id="editor-title">新增需求</h2>
+        <button id="delete" class="danger-text" type="button" hidden>删除</button>
+      </header>
+      <div class="editor-content">
+        <section class="form-section">
+          <h3>需求</h3>
+          <label>标题 <span class="required">必填</span>
+            <input id="title" type="text" maxlength="300" placeholder="这件事要解决什么？">
+          </label>
+          <label>项目
+            <input id="project" type="text" maxlength="300" placeholder="选填">
+          </label>
+          <label>背景与备注
+            <textarea id="notes" rows="3" placeholder="补充背景或上下文"></textarea>
+          </label>
+        </section>
+
+        <section class="form-section">
+          <h3>分类与状态</h3>
+          <div class="form-row">
+            <label>四象限
+              <select id="quadrant">
+                <option value="importantNotUrgent">重要不紧急</option>
+                <option value="importantUrgent">重要且紧急</option>
+                <option value="notImportantNotUrgent">不紧急不重要</option>
+                <option value="notImportantUrgent">紧急不重要</option>
+              </select>
+            </label>
+            <label>状态
+              <select id="demand-status">
+                <option value="planned">待开始</option>
+                <option value="inProgress">进行中</option>
+                <option value="paused">挂起</option>
+                <option value="completed">已完成</option>
+              </select>
+            </label>
+          </div>
+          <label class="check-row"><input id="has-due" type="checkbox"> 设置截止日期</label>
+          <label id="due-wrap" hidden>截止日期 <input id="due" type="date"></label>
+        </section>
+
+        <section class="form-section">
+          <h3>进度</h3>
+          <p class="hint">本次进展会在保存需求时追加。</p>
+          <label>本次进展
+            <textarea id="new-progress" rows="3" placeholder="记录已完成的事、发现或下一步"></textarea>
+          </label>
+          <div id="progress-history"></div>
+        </section>
+
+        <section class="form-section">
+          <h3>咒言 <span class="hint">发给 AI 的上下文</span></h3>
+          <p class="hint">可全部留空；填写咒言时“要做什么”必填。</p>
+          <label>代码入口
+            <textarea id="code-entry" rows="3" placeholder="服务、流程描述或代码路径"></textarea>
+          </label>
+          <label>可能有用的资料
+            <textarea id="materials" rows="3" placeholder="文档名称、链接或路径"></textarea>
+          </label>
+          <label>要做什么
+            <textarea id="intent" rows="5" placeholder="目标、预期行为与验收方式"></textarea>
+          </label>
+          <label>补充说明
+            <textarea id="supplement" rows="3" placeholder="范围、约束或处理偏好"></textarea>
+          </label>
+        </section>
+        <div id="editor-error" class="message error" role="alert" hidden></div>
+      </div>
+      <footer class="editor-actions">
+        <button id="cancel" type="button">取消</button>
+        <span class="flex-spacer"></span>
+        <button id="save" type="button">保存</button>
+        <button id="save-copy" class="primary" type="button">保存并复制咒言</button>
+      </footer>
+    </div>
+  </dialog>
+</body>
+</html>

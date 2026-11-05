@@ -1,0 +1,28 @@
+{
+  "demands" : [
+    {
+      "createdAt" : "2026-11-05T02:00:00Z",
+      "id" : "625805ab-1eac-43c7-a001-c2aa3391282e",
+      "notes" : "示例背景",
+      "progress" : [
+        {
+          "createdAt" : "2026-11-05T02:30:00Z",
+          "id" : "6faf68c4-863f-4733-83d5-8d8ae80cd941",
+          "text" : "已完成数据结构设计"
+        }
+      ],
+      "project" : "示例项目",
+      "quadrant" : "importantNotUrgent",
+      "spell" : {
+        "codeEntry" : "搜索模块",
+        "intent" : "让搜索结果按时间排序。",
+        "materials" : "",
+        "supplement" : ""
+      },
+      "status" : "inProgress",
+      "title" : "示例需求",
+      "updatedAt" : "2026-11-05T02:30:00Z"
+    }
+  ],
+  "schemaVersion" : 1
+}
