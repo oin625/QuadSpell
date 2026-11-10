@@ -19,6 +19,7 @@ private extension Quadrant {
 
 struct DemandBoardView: View {
     @StateObject private var store = DemandStore()
+    @StateObject private var drafts = EditorDraftStore()
     @State private var search = ""
     @State private var statusFilter = "active"
     @State private var editing: Demand?
@@ -43,7 +44,7 @@ struct DemandBoardView: View {
             header
             Divider()
             filters
-            if let error = store.errorMessage {
+            if let error = drafts.errorMessage ?? store.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.callout)
                     .foregroundStyle(.red)
@@ -61,7 +62,7 @@ struct DemandBoardView: View {
         }
         .frame(minWidth: 760, minHeight: 560)
         .sheet(item: $editing) { demand in
-            DemandEditorView(demand: demand, store: store)
+            DemandEditorView(demand: demand, store: store, drafts: drafts)
         }
     }
 
@@ -73,7 +74,22 @@ struct DemandBoardView: View {
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             Spacer()
+            if !drafts.drafts.isEmpty {
+                Menu("草稿（\(drafts.drafts.count)）") {
+                    ForEach(drafts.drafts.keys.sorted(), id: \.self) { key in
+                        if let saved = drafts.drafts[key] {
+                            Button(saved.demand.title.isEmpty ? "未命名需求" : saved.demand.title) {
+                                store.load()
+                                drafts.load()
+                                editing = saved.demand
+                            }
+                        }
+                    }
+                }
+            }
             Button {
+                store.load()
+                drafts.load()
                 editing = Demand()
             } label: {
                 Label("新增需求", systemImage: "plus")
@@ -129,7 +145,7 @@ struct DemandBoardView: View {
                         quadrant: quadrant,
                         demands: visible.filter { $0.quadrant == quadrant },
                         store: store,
-                        onEdit: { editing = $0 }
+                        onEdit: { demand in store.load(); drafts.load(); editing = demand }
                     )
                 }
             }
@@ -145,7 +161,7 @@ struct DemandBoardView: View {
                     .padding(.top, 90)
             }
             ForEach(visible) { demand in
-                DemandCard(demand: demand, onEdit: { editing = demand })
+                DemandCard(demand: demand, onEdit: { store.load(); drafts.load(); editing = demand })
             }
         }
         .padding(24)

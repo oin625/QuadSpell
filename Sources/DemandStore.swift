@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 struct BoardData: Codable {
-    var schemaVersion = 1
+    var schemaVersion = 2
     var demands: [Demand]
 }
 
@@ -13,6 +13,7 @@ final class DemandStore: ObservableObject {
 
     let fileURL: URL
     private var loadFailed = false
+    private var loadedData: Data?
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL ?? FileManager.default.urls(
@@ -24,6 +25,7 @@ final class DemandStore: ObservableObject {
     func load() {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             demands = []
+            loadedData = nil
             loadFailed = false
             errorMessage = nil
             return
@@ -33,10 +35,12 @@ final class DemandStore: ObservableObject {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let board = try decoder.decode(BoardData.self, from: data)
-            guard board.schemaVersion == 1 else {
+            guard [1, 2].contains(board.schemaVersion),
+                  Set(board.demands.map(\.id)).count == board.demands.count else {
                 throw StoreError.unsupportedVersion
             }
             demands = board.demands
+            loadedData = data
             loadFailed = false
             errorMessage = nil
         } catch {
@@ -46,16 +50,38 @@ final class DemandStore: ObservableObject {
     }
 
     @discardableResult
-    func upsert(_ demand: Demand) -> Bool {
+    func upsert(_ demand: Demand, expected: Demand? = nil,
+                progressText: String = "", changeText: String = "") -> Bool {
         var next = demands
         var saved = demand
+        let index = next.firstIndex(where: { $0.id == saved.id })
+        guard (index == nil && expected == nil) ||
+                (index != nil && expected != nil && next[index!].hasSameContent(as: expected!)) else {
+            errorMessage = "需求已发生变化，输入与草稿已保留；请关闭后重新打开并核对，避免覆盖新内容。"
+            return false
+        }
+        guard !saved.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              saved.spell.isValid else {
+            errorMessage = "请填写标题；填写咒言时“要做什么”必填。"
+            return false
+        }
+        let progress = progressText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !progress.isEmpty { saved.progress.append(ProgressEntry(text: progress)) }
+        let change = changeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !change.isEmpty { saved.changes.append(ChangeEntry(text: change)) }
+        if !saved.handoff.hasSameText(as: expected?.handoff ?? Handoff()) {
+            saved.handoff.coveredProgressCount = saved.handoff.canSummarizeProgress ? saved.progress.count : 0
+        }
+        guard saved.handoff.coveredProgressCount >= 0,
+              saved.handoff.coveredProgressCount <= saved.progress.count else {
+            errorMessage = "交接摘要与进度记录不匹配。"
+            return false
+        }
         saved.updatedAt = Date()
-        if let index = next.firstIndex(where: { $0.id == saved.id }) {
+        if let index {
             saved.createdAt = next[index].createdAt
             next[index] = saved
-        } else {
-            next.append(saved)
-        }
+        } else { next.append(saved) }
         return commit(next)
     }
 
@@ -69,8 +95,12 @@ final class DemandStore: ObservableObject {
     }
 
     @discardableResult
-    func remove(_ id: UUID) -> Bool {
-        guard demands.contains(where: { $0.id == id }) else { return false }
+    func remove(_ id: UUID, expected: Demand? = nil) -> Bool {
+        guard let current = demands.first(where: { $0.id == id }) else { return false }
+        if let expected, !current.hasSameContent(as: expected) {
+            errorMessage = "需求已发生变化，请重新打开核对后再删除。"
+            return false
+        }
         return commit(demands.filter { $0.id != id })
     }
 
@@ -80,6 +110,13 @@ final class DemandStore: ObservableObject {
             return false
         }
         do {
+            let diskData = FileManager.default.fileExists(atPath: fileURL.path)
+                ? try Data(contentsOf: fileURL) : nil
+            guard diskData == loadedData else {
+                load()
+                errorMessage = "本地数据已被其他窗口或程序修改，输入与草稿已保留；请重新打开需求核对后再保存。"
+                return false
+            }
             let directory = fileURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let encoder = JSONEncoder()
@@ -87,6 +124,7 @@ final class DemandStore: ObservableObject {
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(BoardData(demands: next))
             try data.write(to: fileURL, options: .atomic)
+            loadedData = data
             demands = next
             errorMessage = nil
             return true
@@ -98,8 +136,6 @@ final class DemandStore: ObservableObject {
 
     enum StoreError: LocalizedError {
         case unsupportedVersion
-        var errorDescription: String? {
-            "数据版本比当前应用更新"
-        }
+        var errorDescription: String? { "数据版本不受支持或存在重复编号" }
     }
 }

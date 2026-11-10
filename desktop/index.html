@@ -19,6 +19,7 @@
           <p>把需求放进四象限，为下一步写好咒言</p>
         </div>
       </div>
+      <label><span class="sr-only">恢复草稿</span><select id="draft-picker" aria-label="恢复草稿" hidden></select></label>
       <button id="add" class="primary" type="button">＋ 新增需求</button>
     </header>
 
@@ -114,10 +115,28 @@
             <textarea id="supplement" rows="3" placeholder="范围、约束或处理偏好"></textarea>
           </label>
         </section>
+        <section class="form-section">
+          <h3>追加变更</h3>
+          <p class="hint">保留原目标，单独记录本轮调整；保存时追加，未完成的验证继续保留。</p>
+          <label>这次要改什么
+            <textarea id="new-change" rows="3" placeholder="在已有实现上调整什么？"></textarea>
+          </label>
+          <div id="change-history"></div>
+        </section>
+        <section class="form-section">
+          <h3>交接摘要</h3>
+          <p class="hint">手动概括当前任务。填写下一步和验证结果后，更新摘要涵盖当前进度；复制时带上摘要和之后的新进度，完整历史仍保留。</p>
+          <label>已完成<textarea id="handoff-completed" rows="3"></textarea></label>
+          <label>下一步<textarea id="handoff-pending" rows="3"></textarea></label>
+          <label>关键决定<textarea id="handoff-decisions" rows="3"></textarea></label>
+          <label>验证结果<textarea id="handoff-verification" rows="3" placeholder="通过、失败和尚未执行的检查"></textarea></label>
+        </section>
+        <p id="draft-status" class="hint" role="status"></p>
         <div id="editor-error" class="message error" role="alert" hidden></div>
       </div>
       <footer class="editor-actions">
-        <button id="cancel" type="button">取消</button>
+        <button id="cancel" type="button">关闭</button>
+        <button id="discard" class="danger-text" type="button">放弃草稿</button>
         <span class="flex-spacer"></span>
         <button id="save" type="button">保存</button>
         <button id="save-copy" class="primary" type="button">保存并复制咒言</button>

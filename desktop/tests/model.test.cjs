@@ -47,7 +47,7 @@ test('storage persists edits, moves and progress as portable JSON', () => {
     assert.equal(reopened.demands[0].quadrant, 'importantUrgent');
     assert.equal(reopened.demands[0].progress[0].text, '第一条进度');
     assert.equal(reopened.demands[0].progress.length, 1);
-    assert.equal(parseBoard(fs.readFileSync(file, 'utf8')).schemaVersion, 1);
+    assert.equal(parseBoard(fs.readFileSync(file, 'utf8')).schemaVersion, 2);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

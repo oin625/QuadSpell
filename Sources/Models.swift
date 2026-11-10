@@ -69,11 +69,22 @@ struct Spell: Codable, Equatable {
         }
         if !intent.isEmpty { sections.append("## 要做什么\n\(intent)") }
         if !supplement.isEmpty { sections.append("## 补充说明\n\(supplement)") }
-        if !demand.progress.isEmpty {
-            let history = demand.progress.map { entry in
+        if !demand.changes.isEmpty {
+            sections.append("## 追加变更\n以下是在原目标上的调整，请保留尚未完成的验证：\n" +
+                demand.changes.enumerated().map { index, change in
+                    "### C\(String(format: "%03d", index + 1))\n\(change.text)"
+                }.joined(separator: "\n\n"))
+        }
+        if !demand.handoff.isEmpty {
+            sections.append(demand.handoff.prompt)
+        }
+        let progress = demand.handoff.isEmpty ? demand.progress :
+            Array(demand.progress.dropFirst(demand.handoff.coveredProgressCount))
+        if !progress.isEmpty {
+            let history = progress.map { entry in
                 "- \(entry.createdAt.formatted(date: .numeric, time: .shortened))：\(entry.text)"
             }.joined(separator: "\n")
-            sections.append("## 已记录的进度\n\(history)")
+            sections.append((demand.handoff.isEmpty ? "## 已记录的进度\n" : "## 摘要之后的新进度\n") + history)
         }
         return sections.joined(separator: "\n\n")
     }
@@ -97,13 +108,96 @@ struct Demand: Codable, Identifiable, Equatable {
     var progress: [ProgressEntry] = []
     var createdAt = Date()
     var updatedAt = Date()
+    var handoff = Handoff()
+    var changes: [ChangeEntry] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, project, notes, quadrant, status, dueDate, spell, progress
+        case createdAt, updatedAt, handoff, changes
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        title = try values.decode(String.self, forKey: .title)
+        project = try values.decode(String.self, forKey: .project)
+        notes = try values.decode(String.self, forKey: .notes)
+        quadrant = try values.decode(Quadrant.self, forKey: .quadrant)
+        status = try values.decode(DemandStatus.self, forKey: .status)
+        dueDate = try values.decodeIfPresent(Date.self, forKey: .dueDate)
+        spell = try values.decode(Spell.self, forKey: .spell)
+        progress = try values.decode([ProgressEntry].self, forKey: .progress)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+        updatedAt = try values.decode(Date.self, forKey: .updatedAt)
+        handoff = try values.decodeIfPresent(Handoff.self, forKey: .handoff) ?? Handoff()
+        changes = try values.decodeIfPresent([ChangeEntry].self, forKey: .changes) ?? []
+        guard handoff.coveredProgressCount >= 0, handoff.coveredProgressCount <= progress.count,
+              Set(progress.map(\.id)).count == progress.count,
+              Set(changes.map(\.id)).count == changes.count else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
+                                                    debugDescription: "交接摘要或记录编号无效"))
+        }
+    }
+
+    // ISO-8601 persistence has second precision; compare the persisted representation.
+    func hasSameContent(as other: Demand) -> Bool {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(self)) == (try? encoder.encode(other))
+    }
 
     func matches(_ query: String) -> Bool {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return true }
-        return [title, project, notes, spell.codeEntry, spell.materials,
-                spell.intent, spell.supplement].contains {
+        let fields = [title, project, notes, spell.codeEntry, spell.materials,
+                spell.intent, spell.supplement, handoff.completed, handoff.pending,
+                handoff.decisions, handoff.verification] + changes.map(\.text) + progress.map(\.text)
+        return fields.contains {
             $0.localizedCaseInsensitiveContains(needle)
         }
+    }
+}
+
+struct ChangeEntry: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var createdAt = Date()
+    var text: String
+}
+
+struct Handoff: Codable, Equatable {
+    var completed = ""
+    var pending = ""
+    var decisions = ""
+    var verification = ""
+    var coveredProgressCount = 0
+
+    var isEmpty: Bool {
+        [completed, pending, decisions, verification].allSatisfy {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    var canSummarizeProgress: Bool {
+        !pending.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !verification.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func hasSameText(as other: Handoff) -> Bool {
+        completed == other.completed && pending == other.pending &&
+        decisions == other.decisions && verification == other.verification
+    }
+
+    var prompt: String {
+        var sections = ["## 交接摘要\n以下是手动维护的任务现状；验证结论以实际记录为准。"]
+        for (title, text) in [("已完成", completed), ("下一步", pending),
+                              ("关键决定", decisions), ("验证结果", verification)] {
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                sections.append("### \(title)\n\(text)")
+            }
+        }
+        return sections.joined(separator: "\n\n")
     }
 }

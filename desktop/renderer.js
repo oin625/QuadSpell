@@ -29,7 +29,12 @@ const fields = {
   materials: document.getElementById('materials'),
   intent: document.getElementById('intent'),
   supplement: document.getElementById('supplement'),
-  progress: document.getElementById('new-progress')
+  progress: document.getElementById('new-progress'),
+  change: document.getElementById('new-change'),
+  completed: document.getElementById('handoff-completed'),
+  pending: document.getElementById('handoff-pending'),
+  decisions: document.getElementById('handoff-decisions'),
+  verification: document.getElementById('handoff-verification')
 };
 const state = {
   demands: [],
@@ -37,7 +42,11 @@ const state = {
   status: 'active',
   layout: localStorage.getItem('quadspell-layout') === 'list' ? 'list' : 'matrix',
   editing: null,
-  initialForm: null
+  initialForm: null,
+  expected: null,
+  draftKey: null,
+  drafts: {},
+  saving: false
 };
 const board = document.getElementById('board');
 const dialog = document.getElementById('editor');
@@ -70,7 +79,9 @@ function visibleDemands() {
     const textMatches = !query || [
       demand.title, demand.project, demand.notes,
       demand.spell.codeEntry, demand.spell.materials,
-      demand.spell.intent, demand.spell.supplement
+      demand.spell.intent, demand.spell.supplement,
+      ...Object.values(demand.handoff ?? {}).filter(value => typeof value === 'string'),
+      ...(demand.changes ?? []).map(entry => entry.text), ...demand.progress.map(entry => entry.text)
     ].some(value => value.toLocaleLowerCase().includes(query));
     return statusMatches && textMatches;
   }).sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
@@ -239,7 +250,12 @@ function formValues() {
     materials: fields.materials.value,
     intent: fields.intent.value,
     supplement: fields.supplement.value,
-    progress: fields.progress.value
+    progress: fields.progress.value,
+    change: fields.change.value,
+    completed: fields.completed.value,
+    pending: fields.pending.value,
+    decisions: fields.decisions.value,
+    verification: fields.verification.value
   };
 }
 
@@ -255,12 +271,103 @@ function renderProgress(demand) {
   }
 }
 
-function openEditor(demand) {
-  state.editing = structuredClone(demand);
-  document.getElementById('editor-title').textContent =
-    state.demands.some(item => item.id === demand.id) ? '编辑需求' : '新增需求';
-  document.getElementById('delete').hidden =
-    !state.demands.some(item => item.id === demand.id);
+function renderDraftPicker() {
+  const picker = document.getElementById('draft-picker');
+  picker.replaceChildren();
+  const entries = Object.entries(state.drafts);
+  picker.hidden = !entries.length;
+  picker.append(element('option', '', '恢复草稿（' + entries.length + '）'));
+  picker.firstChild.value = '';
+  for (const [key, draft] of entries) {
+    const option = element('option', '', draft.demand.title || '未命名需求');
+    option.value = key;
+    picker.append(option);
+  }
+}
+
+function editingDemand() {
+  const values = formValues();
+  return {
+    ...state.editing,
+    title: values.title, project: values.project, notes: values.notes,
+    quadrant: values.quadrant, status: values.status,
+    dueDate: values.hasDue ? dateFromInput(values.due) : null,
+    spell: { codeEntry: values.codeEntry, materials: values.materials,
+      intent: values.intent, supplement: values.supplement },
+    handoff: { ...state.editing.handoff, completed: values.completed,
+      pending: values.pending, decisions: values.decisions, verification: values.verification }
+  };
+}
+
+function preserveDraft() {
+  if (!state.editing || state.saving) return true;
+  try {
+    const result = JSON.stringify(formValues()) === state.initialForm
+      ? api.removeDraft(state.draftKey)
+      : api.saveDraft({ demand: editingDemand(), expected: state.expected,
+        progressText: fields.progress.value, changeText: fields.change.value });
+    if (!result.ok) {
+      showEditorError(result.error);
+      document.getElementById('draft-status').textContent = '草稿未保存，请保持窗口打开或先复制备份。';
+      return false;
+    }
+    state.drafts = result.drafts;
+    renderDraftPicker();
+    document.getElementById('draft-status').textContent = '草稿已保存在本机。关闭或重启后可恢复；保存后正式生效。';
+    return true;
+  } catch (error) {
+    showEditorError('草稿保存失败：' + error.message);
+    return false;
+  }
+}
+
+function renderChanges(demand) {
+  const history = document.getElementById('change-history');
+  history.replaceChildren();
+  (demand.changes ?? []).forEach((entry, index) => {
+    const row = element('details', 'progress-entry');
+    row.append(element('summary', '', 'C' + String(index + 1).padStart(3, '0') +
+      ' · ' + formatDate(entry.createdAt, true)), element('div', '', entry.text));
+    history.append(row);
+  });
+}
+
+async function openEditor(demand) {
+  if (dialog.open) return;
+  try {
+    const [snapshot, draftSnapshot] = await Promise.all([api.load(), api.listDrafts()]);
+    if (dialog.open) return;
+    state.demands = snapshot.demands;
+    state.drafts = draftSnapshot.drafts;
+    render();
+    renderDraftPicker();
+    const current = state.demands.find(item => item.id === demand.id) ?? null;
+    const matchingKey = Object.keys(state.drafts).find(key => state.drafts[key].demand.id === demand.id);
+    state.draftKey = matchingKey ?? (current ? demand.id.toUpperCase() : 'new');
+    const saved = state.drafts[state.draftKey];
+    state.expected = saved ? saved.expected ?? null : current;
+    const baseline = current ?? demand;
+    state.editing = structuredClone(baseline);
+    fillEditor(baseline);
+    state.initialForm = JSON.stringify(formValues());
+    if (saved) {
+      state.editing = structuredClone(saved.demand);
+      fillEditor(saved.demand, saved.progressText, saved.changeText);
+    }
+    document.getElementById('editor-title').textContent = current ? '编辑需求' : '新增需求';
+    document.getElementById('delete').hidden = !current;
+    document.getElementById('draft-status').textContent = saved
+      ? '已恢复本机草稿。保存后生效，关闭会继续保留。'
+      : '输入自动保存在本机，关闭后可恢复。';
+    showEditorError(draftSnapshot.error || snapshot.error || '');
+    dialog.showModal();
+    fields.title.focus();
+  } catch (error) {
+    showMessage('打开需求失败：' + error.message, true);
+  }
+}
+
+function fillEditor(demand, progress = '', change = '') {
   fields.title.value = demand.title;
   fields.project.value = demand.project;
   fields.notes.value = demand.notes;
@@ -273,23 +380,32 @@ function openEditor(demand) {
   fields.materials.value = demand.spell.materials;
   fields.intent.value = demand.spell.intent;
   fields.supplement.value = demand.spell.supplement;
-  fields.progress.value = '';
+  fields.progress.value = progress;
+  fields.change.value = change;
+  const handoff = demand.handoff ?? {};
+  for (const key of ['completed', 'pending', 'decisions', 'verification']) fields[key].value = handoff[key] ?? '';
   renderProgress(demand);
-  showEditorError('');
-  state.initialForm = JSON.stringify(formValues());
-  dialog.showModal();
-  fields.title.focus();
+  renderChanges(demand);
 }
 
 function requestClose() {
-  if (JSON.stringify(formValues()) !== state.initialForm &&
-      !window.confirm('放弃未保存的修改？')) return;
+  if (state.saving || !preserveDraft()) return;
+  dialog.close();
+  state.editing = null;
+}
+
+function discardDraft() {
+  if (state.saving || !window.confirm('放弃这份未保存的草稿？已保存的需求和记录会保留。')) return;
+  const result = api.removeDraft(state.draftKey);
+  if (!result.ok) { showEditorError(result.error); return; }
+  state.drafts = result.drafts;
+  renderDraftPicker();
   dialog.close();
   state.editing = null;
 }
 
 async function save(copy) {
-  if (!state.editing) return;
+  if (!state.editing || state.saving) return;
   const values = formValues();
   if (!values.title.trim()) {
     showEditorError('请填写需求标题');
@@ -312,23 +428,21 @@ async function save(copy) {
     fields.intent.focus();
     return;
   }
-  const demand = {
-    ...state.editing,
-    title: values.title,
-    project: values.project,
-    notes: values.notes,
-    quadrant: values.quadrant,
-    status: values.status,
-    dueDate: values.hasDue ? dateFromInput(values.due) : null,
-    spell
-  };
+  const demand = editingDemand();
+  if (!preserveDraft()) return;
+  state.saving = true;
+  document.getElementById('save').disabled = true;
+  document.getElementById('save-copy').disabled = true;
   try {
-    const result = await api.save(demand, values.progress);
+    const result = await api.save(demand, values.progress, state.expected, values.change);
     if (!result.ok) {
       showEditorError(result.error);
       return;
     }
     applyResult(result);
+    const cleared = api.removeDraft(state.draftKey);
+    if (cleared.ok) { state.drafts = cleared.drafts; renderDraftPicker(); }
+    else showMessage('需求已保存，但草稿清理失败：' + cleared.error, true);
     dialog.close();
     state.editing = null;
     if (copy) {
@@ -337,14 +451,21 @@ async function save(copy) {
     }
   } catch (error) {
     showEditorError(`保存失败：${error.message}`);
+  } finally {
+    state.saving = false;
+    document.getElementById('save').disabled = false;
+    document.getElementById('save-copy').disabled = false;
   }
 }
 
 async function remove() {
-  if (!state.editing || !window.confirm('删除这条需求？此操作会移除本机记录。')) return;
+  if (!state.editing || state.saving || !window.confirm('删除这条需求？此操作会移除本机记录。')) return;
   try {
-    const result = await api.remove(state.editing.id);
+    const result = await api.remove(state.editing.id, state.expected);
     if (applyResult(result)) {
+      const cleared = api.removeDraft(state.draftKey);
+      if (cleared.ok) { state.drafts = cleared.drafts; renderDraftPicker(); }
+      else showMessage(cleared.error, true);
       dialog.close();
       state.editing = null;
     } else {
@@ -379,6 +500,18 @@ fields.hasDue.addEventListener('change', () => {
   if (fields.hasDue.checked && !fields.due.value) fields.due.value = dateInputValue(new Date());
 });
 document.getElementById('cancel').addEventListener('click', requestClose);
+document.getElementById('discard').addEventListener('click', discardDraft);
+document.getElementById('draft-picker').addEventListener('change', event => {
+  const saved = state.drafts[event.target.value];
+  if (saved) openEditor(saved.demand);
+});
+for (const field of Object.values(fields)) {
+  field.addEventListener('input', preserveDraft);
+  field.addEventListener('change', preserveDraft);
+}
+window.addEventListener('beforeunload', event => {
+  if (state.saving || !preserveDraft()) { event.preventDefault(); event.returnValue = ''; }
+});
 document.getElementById('save').addEventListener('click', () => save(false));
 document.getElementById('save-copy').addEventListener('click', () => save(true));
 document.getElementById('delete').addEventListener('click', remove);
@@ -387,17 +520,24 @@ dialog.addEventListener('cancel', event => {
   requestClose();
 });
 document.addEventListener('keydown', event => {
-  if (!dialog.open && event.ctrlKey && event.key.toLowerCase() === 'n') {
+  if (!dialog.open && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'n') {
     event.preventDefault();
     document.getElementById('add').click();
   }
-  if (dialog.open && event.ctrlKey && event.key.toLowerCase() === 's') {
+  if (dialog.open && (event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+    event.preventDefault();
+    save(true);
+  }
+  if (dialog.open && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
     save(false);
   }
 });
 
-api.load().then(snapshot => {
+Promise.all([api.load(), api.listDrafts()]).then(([snapshot, draftSnapshot]) => {
+  state.drafts = draftSnapshot.drafts;
+  renderDraftPicker();
+  if (draftSnapshot.error) showMessage(draftSnapshot.error, true);
   state.demands = snapshot.demands;
   if (snapshot.error) showMessage(snapshot.error, true);
   render();

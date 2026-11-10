@@ -83,6 +83,15 @@ The board helps you decide what deserves attention, then gives you the context t
 - Search tasks, projects, notes, and spells.
 - Track status, deadlines, and progress history.
 
+## Continue with the latest task state
+
+- **Recover unfinished drafts.** New tasks, edits, pending progress, and change notes are saved locally as you type. Close or restart the app, then use the drafts menu to resume. Saving applies the draft; discarding removes only unsaved work.
+- **Append changes without replacing the original goal.** Record this round's adjustments separately as C001, C002, and so on. The copied spell includes the original brief and all changes, with a reminder to retain unfinished verification.
+- **Keep a structured handoff.** Manually record completed work, next steps, key decisions, and verification results. Once both next steps and verification are filled in, updating the summary covers progress through that save. Later progress is still copied. An incomplete summary keeps the full progress history in the copy; the editor always retains all history. Clearing the summary restores copying the full history.
+- **Protect newer edits.** If the task or local data file changes while you are editing, saving stops and retains your draft. Copy any needed draft text, discard the old draft, then reopen the task to reconcile with the latest version.
+
+Summaries are maintained by you. QuadSpell does not call an AI to summarize or mark unverified work as passed.
+
 ## Get started
 
 **Windows x64:** [Download the latest release](https://github.com/oin625/QuadSpell/releases/latest). Choose `QuadSpell-Setup-*.exe` to install, or `QuadSpell-Portable-*.exe` to run without installation. The current binaries are unsigned, so Windows may display “Unknown publisher”.
@@ -108,6 +117,8 @@ Tasks are saved in a local JSON file:
 
 Both versions use the same JSON format. Close the app before copying the file to the other computer. Each new installation starts with an empty board; synchronization is manual.
 
+Version 0.3.0 writes schema version 2 and can read version 1 files. The first save upgrades the file while retaining existing tasks and progress. Older apps refuse to write version 2 files, protecting the new summaries and changes; update both apps before migrating data. Local drafts live separately in `drafts.json` alongside the task file and do not need to be copied when migrating tasks.
+
 ## Development
 
 The repository contains a native SwiftUI app in `Sources/` and an Electron desktop app in `desktop/`.
@@ -120,6 +131,7 @@ swift test
 npm install --no-package-lock
 npm start
 npm run test:desktop
+npm run smoke:desktop
 
 # Build on Windows
 npm run dist:win

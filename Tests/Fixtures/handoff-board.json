@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 2,
+  "demands": [
+    {
+      "id": "625805ab-1eac-43c7-a001-c2aa3391282e",
+      "title": "接续搜索任务",
+      "project": "示例项目",
+      "notes": "保留现有过滤",
+      "quadrant": "importantNotUrgent",
+      "status": "inProgress",
+      "dueDate": null,
+      "spell": {
+        "codeEntry": "src/search.ts",
+        "materials": "docs/search.md",
+        "intent": "按时间排序",
+        "supplement": "仅调整排序"
+      },
+      "progress": [
+        {
+          "id": "6faf68c4-863f-4733-83d5-8d8ae80cd941",
+          "createdAt": "2026-11-05T02:30:00Z",
+          "text": "完成排序实现"
+        },
+        {
+          "id": "40b79ec4-2b23-4c53-8b1f-56c78f335ad3",
+          "createdAt": "2026-11-10T03:30:00Z",
+          "text": "相同时间排序仍待验证"
+        }
+      ],
+      "createdAt": "2026-11-05T02:00:00Z",
+      "updatedAt": "2026-11-10T03:30:00Z",
+      "handoff": {
+        "completed": "排序已实现",
+        "pending": "验证相同时间排序",
+        "decisions": "保留原过滤逻辑",
+        "verification": "空结果通过；回归尚未执行",
+        "coveredProgressCount": 1
+      },
+      "changes": [
+        {
+          "id": "21730455-2dfe-44a1-958b-eb449b8ab87d",
+          "createdAt": "2026-11-10T03:00:00Z",
+          "text": "相同时间保持输入顺序"
+        }
+      ]
+    }
+  ]
+}
