@@ -1,0 +1,220 @@
+#!/bin/bash
+# DBoard 构建 & 安装脚本
+# 用法: ./install.sh [--full]
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_NAME="DBoard-Personal"
+INSTALL_DIR="$HOME/Applications"
+LAUNCH_AGENT_DIR="$HOME/Library/LaunchAgents"
+LAUNCH_AGENT_PLIST="local.dboard.personal.plist"
+
+echo "📋 DBoard — Mac 菜单栏看板插件"
+echo "================================"
+echo ""
+
+# 1. 构建
+echo "🔨 正在构建..."
+cd "$SCRIPT_DIR"
+BUILD_PATH="$(bash "$SCRIPT_DIR/Tools/build_app.sh" "$@")"
+if [ ! -f "$BUILD_PATH" ]; then
+    echo "❌ 构建失败"
+    exit 1
+fi
+echo "✅ 构建成功"
+
+# 2. 创建 .app 包
+echo "📦 正在打包 .app..."
+APP_DIR="$INSTALL_DIR/$APP_NAME.app"
+CONTENTS_DIR="$APP_DIR/Contents"
+MACOS_DIR="$CONTENTS_DIR/MacOS"
+RESOURCES_DIR="$CONTENTS_DIR/Resources"
+
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+cp "$BUILD_PATH" "$MACOS_DIR/$APP_NAME"
+cp "$SCRIPT_DIR/Resources/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns" 2>/dev/null || echo "⚠️  缺少 AppIcon.icns"
+# Offline, editable Excalidraw scenes; no exported map previews.
+cp -R "$SCRIPT_DIR/Resources/ExcalidrawEditor" "$RESOURCES_DIR/"
+# 同步逻辑随应用打包，不再依赖可能过时的 ~/.local/bin 副本。
+
+# 给执行 AI 的 CLI 与 Skill 随应用更新；保留已有 dboard GUI 命令。
+mkdir -p "$RESOURCES_DIR/CLI" "$RESOURCES_DIR/skills/dboard-feedback" "$HOME/.local/bin"
+cp "$SCRIPT_DIR/Tools/dboard_ai.py" "$RESOURCES_DIR/CLI/dboard_ai.py"
+cp "$SCRIPT_DIR/Tools/dboard_try.py" "$RESOURCES_DIR/CLI/dboard_try.py"
+cp "$SCRIPT_DIR/Tools/dboard_learning.py" "$RESOURCES_DIR/CLI/dboard_learning.py"
+cp "$SCRIPT_DIR/Tools/dboard_learning_knowledge.py" "$RESOURCES_DIR/CLI/dboard_learning_knowledge.py"
+cp "$SCRIPT_DIR/Tools/dboard_code.py" "$RESOURCES_DIR/CLI/dboard_code.py"
+cp "$SCRIPT_DIR/Tools/dboard_worktrees.py" "$RESOURCES_DIR/CLI/dboard_worktrees.py"
+cp "$SCRIPT_DIR/Tools/dboard_plan.py" "$RESOURCES_DIR/CLI/dboard_plan.py"
+cp "$SCRIPT_DIR/Tools/dboard_handoff.py" "$RESOURCES_DIR/CLI/dboard_handoff.py"
+cp "$SCRIPT_DIR/Tools/dboard_knowledge.py" "$RESOURCES_DIR/CLI/dboard_knowledge.py"
+cp "$SCRIPT_DIR/Tools/dboard_overview.py" "$RESOURCES_DIR/CLI/dboard_overview.py"
+cp "$SCRIPT_DIR/Resources/skills/dboard-feedback/SKILL.md" "$RESOURCES_DIR/skills/dboard-feedback/SKILL.md"
+mkdir -p "$RESOURCES_DIR/skills/dboard-feedback/references"
+cp "$SCRIPT_DIR/Resources/skills/dboard-feedback/references/"*.md "$RESOURCES_DIR/skills/dboard-feedback/references/"
+chmod 755 "$RESOURCES_DIR/CLI/dboard_ai.py"
+ln -sfn "$RESOURCES_DIR/CLI/dboard_ai.py" "$HOME/.local/bin/dboard-personal-ai"
+
+# 皮肤背景图复制到 App bundle
+for bgf in "$SCRIPT_DIR"/Resources/bg-*; do
+    [ -f "$bgf" ] && cp "$bgf" "$RESOURCES_DIR/"
+done
+
+# 应用发布台 token 指引图
+
+# Chrome 桥接扩展
+# 已加载的解压版扩展也同步更新；Chrome 在 chrome://extensions 点「重新加载」后生效。
+
+# Info.plist
+cat > "$CONTENTS_DIR/Info.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>DBoard-Personal</string>
+    <key>CFBundleDisplayName</key>
+    <string>D板</string>
+    <key>CFBundleIdentifier</key>
+    <string>local.dboard.personal</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleExecutable</key>
+    <string>DBoard-Personal</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+    <key>CFBundleDocumentTypes</key>
+    <array><dict>
+        <key>CFBundleTypeName</key><string>Excalidraw 绘图</string>
+        <key>CFBundleTypeRole</key><string>Editor</string>
+        <key>LSHandlerRank</key><string>Alternate</string>
+        <key>LSItemContentTypes</key><array><string>com.excalidraw.scene</string></array>
+        <key>CFBundleTypeExtensions</key><array><string>excalidraw</string></array>
+    </dict></array>
+    <key>UTImportedTypeDeclarations</key>
+    <array><dict>
+        <key>UTTypeIdentifier</key><string>com.excalidraw.scene</string>
+        <key>UTTypeDescription</key><string>Excalidraw 绘图</string>
+        <key>UTTypeConformsTo</key><array><string>public.json</string></array>
+        <key>UTTypeTagSpecification</key><dict>
+            <key>public.filename-extension</key><array><string>excalidraw</string></array>
+            <key>public.mime-type</key><string>application/vnd.excalidraw+json</string>
+        </dict>
+    </dict></array>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>15.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>
+PLIST
+
+# 稳定签名: ad-hoc 签名每次重建 cdhash 都变, 会导致"辅助功能"等 TCC 授权失效。
+# 用一次性创建的自签证书签名, 授权绑定证书指纹, 重建后依然有效。
+SIGN_IDENTITY="DBoard Personal Local Sign"
+SIGN_DIR="$HOME/Library/Application Support/DBoard-Personal/sign"
+SIGN_KC="$HOME/Library/Keychains/dboard-personal-sign.keychain-db"
+if ! security find-identity -v -p codesigning "$SIGN_KC" 2>/dev/null | grep -q "$SIGN_IDENTITY"; then
+    echo "🔐 首次安装: 创建本地签名证书(之后重建不再丢失辅助功能授权)..."
+    mkdir -p "$SIGN_DIR"
+    cat > "$SIGN_DIR/cert.cnf" << 'CERTCNF'
+[req]
+distinguished_name = dn
+x509_extensions = ext
+prompt = no
+[dn]
+CN = DBoard Personal Local Sign
+[ext]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature
+extendedKeyUsage = codeSigning
+CERTCNF
+    openssl req -x509 -newkey rsa:2048 -keyout "$SIGN_DIR/key.pem" -out "$SIGN_DIR/cert.pem" \
+        -days 3650 -nodes -config "$SIGN_DIR/cert.cnf" >/dev/null 2>&1
+    security create-keychain -p dboard "$SIGN_KC" >/dev/null 2>&1 || true
+    security unlock-keychain -p dboard "$SIGN_KC" >/dev/null 2>&1 || true
+    security import "$SIGN_DIR/cert.pem" -k "$SIGN_KC" >/dev/null 2>&1 || true
+    security import "$SIGN_DIR/key.pem" -k "$SIGN_KC" -T /usr/bin/codesign -T /usr/bin/security >/dev/null 2>&1 || true
+    security add-trusted-cert -p codeSign "$SIGN_DIR/cert.pem" >/dev/null 2>&1 || true
+fi
+# 专用钥匙串加入搜索列表, 否则 codesign 找不到自签身份
+security list-keychains -d user -s "$SIGN_KC" $(security list-keychains -d user | tr -d '"') >/dev/null 2>&1 || true
+# 增量更新也使用这个入口，避免钥匙串睡眠/超时锁定后反复弹密码框。
+bash "$SCRIPT_DIR/Tools/sign_app.sh" "$APP_DIR"
+
+echo "✅ App 已安装到 $APP_DIR"
+
+# 3. 配置开机自启（LaunchAgent）
+echo "⚙️  配置开机自启..."
+mkdir -p "$LAUNCH_AGENT_DIR"
+
+cat > "$LAUNCH_AGENT_DIR/$LAUNCH_AGENT_PLIST" << AGENT
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>local.dboard.personal</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>open</string>
+        <string>-a</string>
+        <string>$APP_DIR</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>
+AGENT
+
+# 加载 LaunchAgent
+launchctl unload "$LAUNCH_AGENT_DIR/$LAUNCH_AGENT_PLIST" 2>/dev/null || true
+launchctl load "$LAUNCH_AGENT_DIR/$LAUNCH_AGENT_PLIST"
+
+echo "✅ 开机自启已配置"
+
+# 4. 立即启动
+echo ""
+echo "🚀 启动 DBoard..."
+# 先杀掉旧进程
+pkill -f "$APP_NAME.app" 2>/dev/null || true
+# 等旧进程真正退出再 open: 只 sleep 固定 0.5s 有竞态——旧进程没死透时
+# open 会去唤醒那个将死的实例, 结果就是安装完应用"悄悄消失"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+    pgrep -x "$APP_NAME" >/dev/null 2>&1 || break
+    sleep 0.3
+done
+open "$APP_DIR"
+
+echo ""
+echo "================================"
+echo "✅ 安装完成！"
+echo ""
+echo "   📍 App 位置: $APP_DIR"
+echo "   📍 开机自启: $LAUNCH_AGENT_DIR/$LAUNCH_AGENT_PLIST"
+echo "   📍 D板数据:  ~/.dboard-personal/demand-center-cache.md"
+echo "   📍 AI 反馈 CLI: ~/.local/bin/dboard-personal-ai（context / show / report / guide）"
+echo ""
+echo "   菜单栏右上角找 ☑️ 图标即可使用"
+echo ""
+echo "   卸载方式:"
+echo "   rm -rf \"$APP_DIR\""
+echo "   launchctl unload \"$LAUNCH_AGENT_DIR/$LAUNCH_AGENT_PLIST\""
+echo "   rm \"$LAUNCH_AGENT_DIR/$LAUNCH_AGENT_PLIST\""
+echo "================================"

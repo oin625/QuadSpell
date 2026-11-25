@@ -1,0 +1,168 @@
+import Foundation
+import Combine
+
+struct ArchivedDemand: Identifiable {
+    let block: [String]
+    let original: [String]?
+    let priority: ItemPriority
+    var id: String { ContentRevision.hash(block.joined(separator: "\n")) }
+    var projection: [String]? {
+        guard original != nil else { return nil }
+        return try? DemandOverview.archiveBlock(block)
+    }
+    var projectionID: String? {
+        projection.map { ContentRevision.hash($0.joined(separator: "\n")) }
+    }
+    let item: DItem
+    var completedDate: String? {
+        guard let range = block[0].range(of: #"✅[0-9]{4}-[0-9]{2}-[0-9]{2}"#, options: .regularExpression) else { return nil }
+        return String(block[0][range].dropFirst())
+    }
+
+    func newDraft(id: String) throws -> DItemDraft {
+        let previous = item
+        let number = (previous.version?.number ?? 1) + 1
+        let version = DemandVersion(number: number, parentID: previous.id,
+            rootID: previous.version?.rootID ?? previous.id, parentTitle: previous.displayTitle,
+            sourceRevision: self.id, background: try DemandVersion.baseline(item: previous, block: block),
+            repositories: try DemandVersion.repositoryHints(block, item: previous))
+        guard version.isValid else { throw DemandVersion.ReadError.invalid }
+        var draft = DItemDraft(newID: id, priority: priority)
+        draft.kind = previous.kind
+        let title = previous.displayTitle.replacingOccurrences(of: #"\s+[0-9]+\.0$"#, with: "", options: .regularExpression)
+        draft.name = title + " " + version.label
+        draft.project = previous.project
+        draft.branch = previous.branch == "待定" ? "" : (previous.branch ?? "")
+        let spell = DemandPromptSections(stored: previous.prompt)
+        draft.promptSections = DemandPromptSections(codeEntry: spell.codeEntry, materials: spell.materials)
+        draft.version = version
+        return draft
+    }
+}
+
+enum DemandArchive {
+    enum ReadError: LocalizedError {
+        case invalid
+        var errorDescription: String? {
+            switch self {
+            case .invalid: return "归档内容无法读取，已保留上次记录"
+            }
+        }
+    }
+
+    static func parse(_ markdown: String) throws -> [ArchivedDemand] {
+        let lines = markdown.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+        var records: [ArchivedDemand] = []
+        var priority: ItemPriority = .p1
+        var index = 0
+        while index < lines.count {
+            for value in ItemPriority.allCases where lines[index].hasPrefix(value.sectionPrefix) { priority = value }
+            guard lines[index].range(of: #"^### [DP][0-9]{3,}(?=【|\s|$)"#, options: .regularExpression) != nil else {
+                index += 1; continue
+            }
+            let start = index
+            index += 1
+            while index < lines.count && !lines[index].hasPrefix("### ") &&
+                !lines[index].hasPrefix("## ") && lines[index] != "---" { index += 1 }
+            var block = Array(lines[start..<index])
+            while block.count > 1, let last = block.last, last.trimmed.isEmpty, !last.hasPrefix("    ") { block.removeLast() }
+            // The completion stamp belongs to the archive, not the requirement's title.
+            block[0] = block[0].replacingOccurrences(of: #"\s*✅[0-9]{4}-[0-9]{2}-[0-9]{2}"#,
+                with: "", options: .regularExpression)
+            let parsed = CacheParser.parse(content: priority.sectionPrefix + "\n" + block.joined(separator: "\n")).items
+            guard parsed.count == 1 else { throw ReadError.invalid }
+            guard parsed[0].status == .completed else { continue }
+            // Keep the exact archive snapshot (including completion stamp) as identity.
+            let rawBlock = Array(lines[start..<(start + block.count)])
+            records.append(ArchivedDemand(block: rawBlock, original: nil, priority: priority, item: parsed[0]))
+        }
+        var seen = Set<String>()
+        return records.reversed().filter { seen.insert($0.id).inserted }
+    }
+
+    static func merged(_ remote: [ArchivedDemand], journal: ArchiveJournal) -> [ArchivedDemand] {
+        var covered = Set<String>()
+        let local: [ArchivedDemand] = journal.entries.values.sorted { $0.createdAt > $1.createdAt }.compactMap { entry in
+            guard entry.state != .submitted,
+                  let archive = try? parse((entry.priority ?? .p1).sectionPrefix + "\n" + entry.archived.joined(separator: "\n")).first,
+                  covered.insert(archive.id).inserted else { return nil }
+            let record = ArchivedDemand(block: archive.block, original: entry.original, priority: archive.priority, item: archive.item)
+            if let projection = record.projectionID { covered.insert(projection) }
+            return record
+        }
+        func normalized(_ block: [String]) -> [String] {
+            block.map { $0.replacingOccurrences(of: #"[ \t]+$"#, with: "", options: .regularExpression) }
+        }
+        return local + remote.filter { record in
+            guard !covered.contains(record.id) else { return false }
+            let matches = local.filter { candidate in
+                candidate.item.id == record.item.id && candidate.completedDate == record.completedDate &&
+                (normalized(candidate.block) == normalized(record.block) ||
+                 candidate.projection.map { normalized($0) == normalized(record.block) } == true)
+            }
+            return matches.count != 1
+        }
+    }
+}
+
+struct ArchivedCodeReview: Codable, Identifiable {
+    let itemID: String
+    let sourceRevision: String
+    let summary: String
+    let details: String
+    let eventID: String
+    var id: String { itemID + "-" + eventID }
+
+    enum CodingKeys: String, CodingKey {
+        case itemID = "id", sourceRevision = "source_revision", summary, details, eventID = "event_id"
+    }
+
+    struct File: Decodable { let version: Int; let records: [ArchivedCodeReview] }
+}
+
+final class DemandArchiveStore: ObservableObject {
+    @Published private(set) var records: [ArchivedDemand] = []
+    @Published private(set) var reviewNotes: [ArchivedCodeReview] = []
+    var cacheURL: URL { cache }
+    @Published private(set) var loading = false
+    @Published private(set) var error: String?
+    @Published private(set) var readAt: Date?
+    private let cache: URL
+    private let journalURL: URL
+    private let allowsRemote: Bool
+
+    init(cache: URL = URL(fileURLWithPath: NSHomeDirectory() + "/.dboard-personal/dboard-archive-cache.md"),
+         journalURL: URL = URL(fileURLWithPath: NSHomeDirectory() + "/.dboard-personal/dboard-archive-journal.json"),
+         allowsRemote: Bool = true) {
+        self.cache = cache; self.journalURL = journalURL; self.allowsRemote = allowsRemote
+        reloadLocal()
+    }
+
+    func review(for record: ArchivedDemand) -> ArchivedCodeReview? {
+        let notes = reviewNotes.filter { $0.itemID == record.item.id }
+        if let exact = notes.last(where: { $0.sourceRevision == record.id }) { return exact }
+        guard !notes.isEmpty, let projection = record.projectionID,
+              !records.contains(where: { $0.id != record.id && ($0.id == projection || $0.projectionID == projection) }) else { return nil }
+        return notes.last { $0.sourceRevision == projection }
+    }
+
+    func reloadLocal() {
+        let reviewURL = cache.deletingLastPathComponent().appendingPathComponent("dboard-archive-code-reviews.json")
+        if let data = try? Data(contentsOf: reviewURL),
+           let file = try? JSONDecoder().decode(ArchivedCodeReview.File.self, from: data), file.version == 1 {
+            reviewNotes = file.records
+        } else { reviewNotes = [] }
+        let journal = ArchiveJournal(url: journalURL)
+        var remote = records
+        var readError: String?
+        do {
+            remote = FileManager.default.fileExists(atPath: cache.path)
+                ? try DemandArchive.parse(String(contentsOf: cache, encoding: .utf8)) : []
+        } catch { readError = error.localizedDescription }
+        records = DemandArchive.merged(remote, journal: journal)
+        error = !journal.readable ? "本机归档恢复记录无法读取；当前仅显示可读取的归档" : readError
+        readAt = (try? cache.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+    }
+
+    func refresh() { reloadLocal() }
+}
